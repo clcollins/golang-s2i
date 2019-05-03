@@ -3,7 +3,7 @@
 TODO: Write into
 
 
-## What is s2i, and why use it
+## What is s2i, and why use it?
 
 The idea behind Source to Image (s2i, or sti) is to make a "builder" image with all the libraries and build tools needed to compile an application (as with Golang), or install dependencies (like Python's Pip or Ruby's Bundler), and a set of scripts at a well-known location that can be called by Source To Image to build, test and run the application.  Once the builder image is created, Source to Image can take code from a repository, inject it into the build image, compile or install dependencies, and generate an application image with the final application ready to go.
 
@@ -12,7 +12,7 @@ Source to Image makes it easy to reproduce consistent images and allows develope
 The real beauty of source to image in my opinion, though, is the ability to use builder images as templates, so that similar applications with similar configurations can be deployed without managing Dockerfiles and Docker builds for every app.
 
 
-## What do you need for s2i
+## What do you need for s2i?
 
 There are only four files required to make an image a Source To Image-compatible image.  Straight from the s2i docs:
 
