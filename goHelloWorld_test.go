@@ -1,4 +1,4 @@
-// GoHelloWorld Tests
+// goHelloWorld_test.go
 package main
 
 import (
