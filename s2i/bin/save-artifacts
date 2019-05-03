@@ -1,0 +1,28 @@
+#!/bin/sh -e
+#
+# S2I save-artifacts script for the 'golang-builder' image.
+# The save-artifacts script streams a tar archive to standard output.
+# The archive contains the files and folders you want to re-use in the next build.
+#
+# For more information see the documentation:
+#	https://github.com/openshift/source-to-image/blob/master/docs/builder_image.md
+#
+# tar cf - <list of files and folders>
+
+# Totally self-contained, because Go ROCKS!
+tar cf - app
+
+
+# This is tricky though - you have to make sure there are NO other contents being streamed out
+# Pipe output to /dev/null other than the tar command
+# When running this script on the other end, to extract the app, make sure you use 
+# `docker run ` WITHOUT the -i, -t, or -d.  The pseudo-termintal will cause tar to refuse
+# to write to the terminal.
+#
+# To pipe your app out to a file; you must run something like
+# docker run <your built app image> /usr/libexec/s2i/save-artifacts | tar -xf -
+#
+# This will leave you with the "app" file in the current directory.
+#
+# You can validate the contents of the tar by running:
+# docker run <your built app image> /usr/libexec/s2i/save-artifacts | tar -tvf -

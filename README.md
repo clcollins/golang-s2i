@@ -36,7 +36,7 @@ The `s2i/bin/save-artifacts` script takes all the artifacts required for the app
 
 These script files can be written in whatever language you like, as long as they can be executed in the container built from the Dockerfile.
 
-__Note:__ The `test/test-app` file is not really required.  If using the `s2i create` command to scaffold a new Source to Image builder, some tests are setup for you, but they are not necessary.  The `run` script is required for most Source to Image builders, but for the Golang builder image we are creating here, it is just a convenience.
+_Note:_ The `test/test-app` file is not really required.  If using the `s2i create` command to scaffold a new Source to Image builder, some tests are setup for you, but they are not necessary.  The `run` script is required for most Source to Image builders, but for the Golang builder image we are creating here, it is just a convenience.
 
 You also need the Source-to-Image software itself to build the runtime or application images, but it is not necessarily required for it to be installed on your local system.  You could create your entire build pipeline in OKD or OpenShift Container Platform and do all your builds there.  It is just easier to develop and test images with the software installed locally.
 
@@ -53,9 +53,87 @@ _Note:_ All of the files referenced here are available from the associated Githu
 
 **Dockerfile**
 
-* assemble
-* run
-* save-artifacts
+The Dockerfile is not actually very complicated. This builder image is going to use the upstream `golang:1.12` image as it's base, so we will not have to manage installing Go and setting up the environment.  A few environment variables also need to be set to allow Go applications to run in a container environment:
+
+*   CGO_ENABLED=0
+*   GOOS=linux
+
+Kelsey Hightower talks more about why these are used in his article [Building Docker Images for Static Go Binaries](https://medium.com/@kelseyhightower/optimizing-docker-images-for-static-binaries-b5696e26eb07), so check that out if you want to know more.
+
+The `GOCACHE=/tmp` environment variable also needs to be set in the Dockerfile to avoid write errors when running the build as a user other than root. This is an OKD/OpenShift convention to [support running containers with arbitrary UIDs](https://docs.okd.io/3.11/creating_images/guidelines.html#openshift-specific-guidelines), but it's also just good practice.  Check out Dan Walsh's article [Just say no to root (in containers)](https://opensource.com/article/18/3/just-say-no-root-containers) for more about why this is a good thing.
+
+Then, set two more environment variables:
+
+*   STI_SCRIPTS_PATH=/usr/libexec/s2i
+*   SOURCE_DIR=/go/src/app
+
+The first tells Source To Image where to find the scripts it needs to run, and the second is just for convenience, so our project is [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself).
+
+In the next section, ddd the Source to Image scripts (see below) to the builder image, and create and `chmod` the `$SOURCE_DIR`, where the scripts will compile the application, and set this as the `WORKDIR` so subsequent operations occur in that directory.
+
+_Note:_ The `$SOURCE_DIR` is set to `/go/src/app` because the `$GOPATH` variable in the parent `golang:1.12` image is set to `/go`.
+
+```
+COPY ./s2i/bin/ ${STI_SCRIPTS_PATH}
+RUN mkdir -p $SOURCE_DIR \
+      && chmod 0777 $SOURCE_DIR
+WORKDIR $SOURCE_DIR
+```
+
+Finally, set `USER 1001` to drop root privileges and assure support for random UIDs, as mentioned above, and set the `CMD` to the Source To Image `usage` script.
+
+```
+USER 1001
+CMD ["/usr/libexec/s2i/usage"]
+```
+
+At this point your Dockerfile should look something like [the Dockerfile in the accompanying Github repository](https://github.com/clcollins/golang-s2i/blob/master/Dockerfile), with the exception of a few labels and comments.
+
+**assemble**
+
+The `assemble` script is what Source to Image uses to compile the Go app.
+
+When s2i copies the application code into the builder image, it places it into `/tmp/src`.  Since the upstream image sets the `GOPATH` to `/go`, the assemble script just needs to copy to a directory in there - the `$SOURCE_DIR` we set earlier in the image.  Then it is just a matter of running `go get` and `go build`.  Because the `WORKDIR` was set to the same directory, the script will run from there.
+
+```
+#!/bin/bash -e
+
+# Copy the src to the current directory - the WORKDIR/$SOURCE_DIR.
+cp -Rf /tmp/src/. ./
+go get -v
+go build -v -o app -a -installsuffix cgo
+```
+
+The `go build` command is run with `-o app` build flag so the resulting binary will have a predictable name (specifically, "app").
+
+That is all that is required in the `assemble` script, but `go test -v` can also be included at the end of the script to make sure the application passes all its code tests, so the image build will fail of any tests fail.
+
+That's it for the `assemble` script.  [The assemble script in the Github repo](https://github.com/clcollins/golang-s2i/blob/master/s2i/bin/assemble) includes a few commands for copying artifacts from a previous build, but is otherwise the same.
+
+**run**
+
+The `run` script is used by s2i to execute the app if running a container from the resulting image build.  Appropriately, it is just two lines:
+
+```
+#!/bin/bash
+exec app
+```
+
+_Note:_ If your application requires arguments, this script would need to be tweaked a little to pass those arguments.
+
+**save-artifacts**
+
+The `save-artifacts` image is not required for Source to Image.  It is used to re-use artifacts from a previous build (think: downloaded Pip packages or Ruby gems), and to do incremental builds, so it can make building images in development much faster.  The Golang builder image will use it a bit differently - to allow us to extract the compiled binary file so it can be included in a much slimmer runtime image (see below).
+
+Source to Image expects the `save-artifacts` script to take all the files and dependencies for an application and stream them through the `tar` command to `stdout`, so they can be received on the other end and saved.  This is easy in theory, but can be tricky if you're not careful.  The contents streamed to `stdout` must include **ONLY** the contents of the
+tar file; you must be careful to prevent text or other content being sent.
+
+In our case, because the builder is compiling a single binary, this script is also just two lines, and has no other output to worry about:
+
+```
+#!/bin/sh -e
+tar cf - app
+```
 
 ## Building the Builder Image
 
