@@ -126,7 +126,9 @@ _Note:_ If your application requires arguments, this script would need to be twe
 The `save-artifacts` image is not required for Source to Image.  It is used to re-use artifacts from a previous build (think: downloaded Pip packages or Ruby gems), and to do incremental builds, so it can make building images in development much faster.  The Golang builder image will use it a bit differently - to allow us to extract the compiled binary file so it can be included in a much slimmer runtime image (see below).
 
 Source to Image expects the `save-artifacts` script to take all the files and dependencies for an application and stream them through the `tar` command to `stdout`, so they can be received on the other end and saved.  This is easy in theory, but can be tricky if you're not careful.  The contents streamed to `stdout` must include **ONLY** the contents of the
-tar file; you must be careful to prevent text or other content being sent.
+tar file; you must be careful to prevent text or other content being sent.  Pipe all output other than that of `tar` to `/dev/null` to ensure the tar archive is not corrupted with other data.
+
+_ProTip:_ If you attempt to stream the contents of the tar file out of the container manually by running the `save-artifacts` script as the command for the container, you **MUST NOT** use the `-i` or `-t` arguments, because `tar` refuses to stream output to the the pseudo-terminal.
 
 In our case, because the builder is compiling a single binary, this script is also just two lines, and has no other output to worry about:
 
@@ -135,84 +137,163 @@ In our case, because the builder is compiling a single binary, this script is al
 tar cf - app
 ```
 
+
 ## Building the Builder Image
+
+That's it!  Once the Dockerfile and s2i scripts are ready, the Golang builder image can be created with the `docker build` command:
 
 `docker build -t golang-builder .`
 
+This will result in a builder image named `golang-builder`.
+
+
 ## Building the application image
 
+The `golang-builder` image is not much use without an application to build.  For this exercise, we will build a simple hello-world application.
+
+
 ### GoHelloWorld
-Lets meet our app
-* Tests?
 
-### Build it
-```
-# s2i build <repo> <builder-image> <resulting-image>
-s2i build . golang-builder go-hello-world
-```
-
-### test the app
-But oh! We did that in the build!
-
-### run the app
+Lets meet our test app, GoHelloWorld:
 
 ```
-$ docker run go-hello-world:1.0
+// goHelloWorld.go
+package main
+
+import "fmt"
+
+func main() {
+  fmt.Println("Hello World!")
+}
+```
+
+This is a very basic app, but it will work fine for testing the builder image.  We also have a basic test for GoHelloWorld:
+
+```
+// goHelloWorld_test.go
+package main
+
+import "testing"
+
+func TestMain(t *testing.T) {
+  t.Log("Hello World!")
+}
+```
+
+
+### Build the application image
+
+Building the application image entails running the `s2i build` command, with arguments for the repository containing the code to build (or '.' to build with code from the current directory), the name of the builder image to use, and the name of the resulting application image to create.
+
+```
+$ s2i build . golang-builder go-hello-world
+```
+
+To build from a remote repository, replace the '.' with the git URL, for example:
+
+```
+$ s2i build https://github.com/clcollins/golang-s2i.git golang-builder go-hello-world
+```
+
+_Note:_  If you have initialized a git repository in the current directory, s2i will fetch the code from the repository URL rather than using the local code.  This results in local, uncommitted changes not being used when building the image.  Directories that are not git initialized repositories behave as expected.
+
+
+### Run the application image
+
+Once the application image has been built, it can be tested by running it with the Docker command.  Source to Image has replaced the `CMD` in the image with the `run` script created earlier, so it will execute the "/go/src/app/app" binary created during the build process.
+
+```
+$ docker run go-hello-world
 Hello World!
 ```
 
-  OH SO BIG!
-  `docker images |grep go-hello-world`
-  PORTS and Configs and Cruft, oh-my!
+Success!  We now have a compiled Go application inside of a Docker image, created by passing the contents of a git repo to Source to Image, and without the need to have a special Dockerfile for our application.
+
+The application image just built includes not only the application, but its source code, test code, the Source to Image scripts, Golang libraries, _and most of the Debian Linux distribution_ (because the Golang image is based on the Debian base image).  The resulting image is not small:
+
+```
+$ docker images | grep go-hello-world
+go-hello-world      latest      75a70c79a12f      4 minutes ago      789 MB
+```
+
+For applications written in Ruby or Python, this would not be a big deal; for interpreted languages with linked libraries, the source code and operating system are necessary.  For these kinds of applications, you could stop here with your Source to Image builds.  Since the resulting application image would be the same image used to run the production app, ports, volumes, and environment variables needed to run could be added to the Dockerfile for the builder image.  For example, to use the builder image to create application images for Rails apps running Puma, `PORT 3000` could be set in the builder Dockerfile and inherited in all the images generated from it.
+
+But for the Go app, we can do better.
+
 
 ## Build a runtime image
-We can do better - a RUNTIME image
 
-* this is why save-artifacts
+Since our builder image created a statically compiled Go binary with our application, we can create a final "runtime" image containing _only_ the binary, and none of the other cruft.
+
+Once the application image is created, the compiled goHelloWorld app can be extracted and put into a new, empty image using the `save-artifacts` script.
 
 ### Runtime files
-* Generate a dockerfile
+
+To create the runtime image, only the application binary and a Dockerfile are required.
+
+**Application binary**
+
+Inside of the application image, the `save-artifacts` script is written to stream a tar archive of the app binary to stdout.  You can check the files included in the tar archive created by `save-artifacts` with the `-vt` flags for `tar`:
+
+```
+$ docker run go-hello-world /usr/libexec/s2i/save-artifacts | tar -tvf -
+-rwxr-xr-x 1001/root   1997502 2019-05-03 18:20 app
+```
+
+If this results in errors along the lines of "This does not appear to be a tar archive", your `save-artifacts` script is probably outputting other data in addition to the `tar` stream, as mentioned above.  Make sure to suppress all output other than the `tar` stream itself.
+
+If everything looks OK, use `save-artifacts` to copy the binary out of the application image:
+
+```
+$ docker run go-hello-world /usr/libexec/s2i/save-artifacts | tar -xf -
+```
+
+This will copy the `app` file into your current directory, ready to be added to its own image.
+
+**Dockerfile**
+
+The Dockerfile is extremely simple - only three lines.  The `FROM scratch` source denotes that an empty, blank parent image is used.  The rest of the Dockerfile just specifies copying binary into `/app` in the image, and using that binary as the image `ENTRYPOINT`.
 
 ```
 FROM scratch
-LABEL maintainer 'Chris Collins <collins.christopher@gmail.com>'
-
 COPY app /app
-
 ENTRYPOINT ["/app"]
 ```
 
-Why `ENTRYPOINT` and not `CMD`?
-  Nothing else is in the image, so you couldn't run it anyway.
+Save this Dockerfile as `Dockerfile-runtime`.
 
-Another Gotcha:
+Why `ENTRYPOINT` and not `CMD`?  You could do either, but since there is nothing else in the image - no filesystem, no shell - you would be unable to run anything else, anyway.
 
-In the APP dockerfile, specifying ENTRYPOINT/CMD without [] will result in:
-
-```
-container_linux.go:247: starting container process caused "exec: \"/bin/sh\": stat /bin/sh: no such file or directory"
-/usr/bin/docker-current: Error response from daemon: oci runtime error: container_linux.go:247: starting container process caused "exec: \"/bin/sh\": stat /bin/sh: no such file or directory"
-```
-
-as it is trying to run a shell.  Link to Docker ENTRYPOINT/CMD example
-
-
-### Copy out the app
-
-`docker run <your built app image> /usr/libexec/s2i/save-artifacts | tar -xf -`
-
-### About streaming with tar
-
-Opine some stuff
 
 ### Building the runtime image
 
-`docker build -f Dockerfile-runtime -t go-hello-world:slim .`
+With the Dockerfile and binary ready to go, build the new runtime image:
 
-It's smaller!  By a lot!
+```
+$ docker build -f Dockerfile-runtime -t go-hello-world:slim .
+```
+
+The new runtime image is considerably smaller - just 2MB!
+
+```
+$ docker images | grep -e 'go-hello-world *slim'
+go-hello-world      slim      4bd091c43816      3 minutes ago     2 MB
+```
+
+Test that it is still working as expected with `docker run`:
+
+```
+$ docker run go-hello-world:slim
+Hello World!
+```
 
 
 ## Bootstrapping s2i with s2i create
+
+The `s2i` command has a sub-command to help you scaffold all the files you might need for a Source to Image build: `s2i create`
+
+Using the `s2i create` command, we can generate a new project, creatively named "go hello world2"
+
 * the Makefile rocks
 
 make
