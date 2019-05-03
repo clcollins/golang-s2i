@@ -2,6 +2,7 @@
 
 TODO: Write into
 
+https://github.com/openshift/source-to-image
 
 ## What is s2i, and why use it?
 
@@ -290,26 +291,32 @@ Hello World!
 
 ## Bootstrapping s2i with s2i create
 
-The `s2i` command has a sub-command to help you scaffold all the files you might need for a Source to Image build: `s2i create`
+The `s2i` command has a sub-command to help you scaffold all the files you might need for a Source to Image build - `s2i create`
 
-Using the `s2i create` command, we can generate a new project, creatively named "go hello world2"
+Using the `s2i create` command, we can generate a new project, creatively named "go-hello-world-2" in the `./ghw2` directory:
 
-* the Makefile rocks
+```
+$ s2i create go-hello-world-2 ./ghw2
+$ ls ./ghw2/
+Dockerfile  Makefile  README.md  s2i  test
+```
 
-make
-make test?
-make appimage
-make test-appimage
-make save
-make runtime
+The create subcommand creates a placeholder Dockerfile, a README.md with information about how to use Source to Image, some example s2i scripts, a basic test framework, and a Makefile.  In particular, the Makefile is a great way to automate building and testing your Source to Image builder image.  Out of the box, just running `make` will build your image, and it can be extended to do more.   For example, you could add steps to build a base application image, or generate a runtime Dockerfile.
 
 
 ## Implement with OKD/OpenShift BuildConfig
-Do all this automagicaly with OKD
-OKD Chained Builds
 
-* buildConfig.yaml
+Once you have a builder image with Source to Image script setup inside, the image can be used with [OKD](https://docs.okd.io) (formerly OpenShift Origin) to automate builds with a `buildConfig`.
 
-[https://docs.okd.io/latest/dev_guide/builds/advanced_build_operations.html#dev-guide-chaining-builds](https://github.com/openshift/source-to-image/releases)
+Generic Source Strategy build config
+
+create with oc create -f buildConfig.yaml
+
+This will generate an application image within OKD, as we did manually above, and again, that is perfect for Python or Ruby images, but for the Golang builder we can do better.
+
+OKD also supports a [buildConfig type for "chained" builds](https://docs.okd.io/latest/dev_guide/builds/advanced_build_operations.html#dev-guide-chaining-builds). Chained builds can extract the app binary using `save-artifacts` and generate a runtime image.
+
+
+
 
 TODO: Conclusion
