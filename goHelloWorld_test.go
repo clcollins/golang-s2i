@@ -1,3 +1,4 @@
+// GoHelloWorld Tests
 package main
 
 import (
