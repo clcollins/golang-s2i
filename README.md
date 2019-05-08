@@ -1,16 +1,14 @@
 # Writing your own Golang Builder with Source-to-Image
 
-TODO: Write into
+[Source To Image](https://github.com/openshift/source-to-image) is an excellent tool for building container images for applications in a fast, flexible and _reproducible_ way.  Source to Image (s2i or sti) takes a base, "builder" image with all the libraries and build tools needed to compile an application (as with a Golang app) or install dependencies (like Python's Pip, or Ruby's Bundler) and a set of scripts in a well-known location that are used to build, test and run the application.  Once the builder image is created, Source to Image can take code from a repository, inject it into the build image, compile or install dependencies, and generate an application image with the final application ready to go.
 
-https://github.com/openshift/source-to-image
+Source to Image makes it easy to reproduce consistent images and allows developers to focus on their applications rather than Docker images and containers, and since the build environment is created ahead of time, builds only take as long as the application takes to compile or configure.
 
-## What is s2i, and why use it?
+The real beauty of source to image in my opinion, though, is the ability to use builder images as templates, so that similar applications with similar configurations can be deployed without managing Dockerfiles and Docker builds for every app - providing identical, and reproducible, environments for similar applications.
 
-The idea behind Source to Image (s2i, or sti) is to make a "builder" image with all the libraries and build tools needed to compile an application (as with Golang), or install dependencies (like Python's Pip or Ruby's Bundler), and a set of scripts at a well-known location that can be called by Source To Image to build, test and run the application.  Once the builder image is created, Source to Image can take code from a repository, inject it into the build image, compile or install dependencies, and generate an application image with the final application ready to go.
+Many official Source to Image builder images already exist (eg. [Python s2i](https://github.com/sclorg/s2i-python-container), [Ruby s2i](https://github.com/sclorg/s2i-ruby-container)), but it's also simple to make your own to suit your needs.
 
-Source to Image makes it easy to reproduce consistent images and allows developers to focus on their applications rather than Docker images and containers.
-
-The real beauty of source to image in my opinion, though, is the ability to use builder images as templates, so that similar applications with similar configurations can be deployed without managing Dockerfiles and Docker builds for every app.
+For this tutorial, we'll build a Golang Source to Image builder image, and use it to build a test "Hello World" application.
 
 
 ## What do you need for s2i?
@@ -155,7 +153,7 @@ The `golang-builder` image is not much use without an application to build.  For
 
 ### GoHelloWorld
 
-Lets meet our test app, GoHelloWorld:
+Lets meet our test app, [GoHelloWorld](https://github.com/clcollins/goHelloWorld.git).  There are to important (for this exercise) important files in this repository:
 
 ```
 // goHelloWorld.go
@@ -187,13 +185,13 @@ func TestMain(t *testing.T) {
 Building the application image entails running the `s2i build` command, with arguments for the repository containing the code to build (or '.' to build with code from the current directory), the name of the builder image to use, and the name of the resulting application image to create.
 
 ```
+$ s2i build https://github.com/clcollins/goHelloWorld.git golang-builder go-hello-world
+```
+
+To build from a local repository on your filesystem, replace the git URL with '.', for example:
+
+```
 $ s2i build . golang-builder go-hello-world
-```
-
-To build from a remote repository, replace the '.' with the git URL, for example:
-
-```
-$ s2i build https://github.com/clcollins/golang-s2i.git golang-builder go-hello-world
 ```
 
 _Note:_  If you have initialized a git repository in the current directory, s2i will fetch the code from the repository URL rather than using the local code.  This results in local, uncommitted changes not being used when building the image.  Directories that are not git initialized repositories behave as expected.
@@ -304,19 +302,8 @@ Dockerfile  Makefile  README.md  s2i  test
 The create subcommand creates a placeholder Dockerfile, a README.md with information about how to use Source to Image, some example s2i scripts, a basic test framework, and a Makefile.  In particular, the Makefile is a great way to automate building and testing your Source to Image builder image.  Out of the box, just running `make` will build your image, and it can be extended to do more.   For example, you could add steps to build a base application image, or generate a runtime Dockerfile.
 
 
-## Implement with OKD/OpenShift BuildConfig
+## Conclusion
 
-Once you have a builder image with Source to Image script setup inside, the image can be used with [OKD](https://docs.okd.io) (formerly OpenShift Origin) to automate builds with a `buildConfig`.
+In this tutorial, we have learned how to use Source To Image to build a custom Golang builder image, create an application image using `s2i build` and how to extract the application binary to create a super-slim runtime image.
 
-Generic Source Strategy build config
-
-create with oc create -f buildConfig.yaml
-
-This will generate an application image within OKD, as we did manually above, and again, that is perfect for Python or Ruby images, but for the Golang builder we can do better.
-
-OKD also supports a [buildConfig type for "chained" builds](https://docs.okd.io/latest/dev_guide/builds/advanced_build_operations.html#dev-guide-chaining-builds). Chained builds can extract the app binary using `save-artifacts` and generate a runtime image.
-
-
-
-
-TODO: Conclusion
+In part two of this series, we will look at how to use the builder image we created with [OKD](https://okd.io), to automatically deploy our Golang apps with buildCongfigs, imageStreams, and deploymentConfigs.
