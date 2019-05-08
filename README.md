@@ -208,7 +208,7 @@ Hello World!
 
 Success!  We now have a compiled Go application inside of a Docker image, created by passing the contents of a git repo to Source to Image, and without the need to have a special Dockerfile for our application.
 
-The application image just built includes not only the application, but its source code, test code, the Source to Image scripts, Golang libraries, _and most of the Debian Linux distribution_ (because the Golang image is based on the Debian base image).  The resulting image is not small:
+The application image just built includes not only the application, but its source code, test code, the Source to Image scripts, Golang libraries, _and much of the Debian Linux distribution_ (because the Golang image is based on the Debian base image).  The resulting image is not small:
 
 ```
 $ docker images | grep go-hello-world
@@ -299,7 +299,7 @@ $ ls ./ghw2/
 Dockerfile  Makefile  README.md  s2i  test
 ```
 
-The create subcommand creates a placeholder Dockerfile, a README.md with information about how to use Source to Image, some example s2i scripts, a basic test framework, and a Makefile.  In particular, the Makefile is a great way to automate building and testing your Source to Image builder image.  Out of the box, just running `make` will build your image, and it can be extended to do more.   For example, you could add steps to build a base application image, or generate a runtime Dockerfile.
+The create sub-command creates a placeholder Dockerfile, a README.md with information about how to use Source to Image, some example s2i scripts, a basic test framework, and a Makefile.  In particular, the Makefile is a great way to automate building and testing your Source to Image builder image.  Out of the box, just running `make` will build your image, and it can be extended to do more.   For example, you could add steps to build a base application image, or generate a runtime Dockerfile.
 
 
 ## Conclusion
