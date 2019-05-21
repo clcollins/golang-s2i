@@ -1,0 +1,8 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  generation: 1
+  name: go-hello-world-appimage
+spec:
+  lookupPolicy:
+    local: false

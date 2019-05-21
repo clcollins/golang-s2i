@@ -1,0 +1,26 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  labels:
+    app: go-hello-world
+    component: appimage
+  name: go-hello-world-appimage
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/clcollins/goHelloWorld.git
+  strategy:
+    type: Source
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        name: golang-builder:1.12
+  output:
+    to:
+      kind: ImageStreamTag
+      name: go-hello-world-appimage:1.0
+  triggers:
+  - type: ConfigChange
+  - imageChange:
+      type: ImageChange

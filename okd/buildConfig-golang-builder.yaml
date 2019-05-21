@@ -1,0 +1,23 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  labels:
+    build: golang-builder
+  name: golang-builder
+spec:
+  source:
+    type: Git
+    git:
+      ref: master
+      uri: https://github.com/clcollins/golang-s2i.git
+  strategy:
+    type: Docker
+    dockerStrategy:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: golang-builder:1.12
+  triggers:
+  - type: ConfigChange
+  - imageChange:
+      type: ImageChange

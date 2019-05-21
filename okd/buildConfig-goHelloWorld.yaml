@@ -1,0 +1,35 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  labels:
+    app: go-hello-world
+    component: runtime
+  name: go-hello-world
+spec:
+  source:
+    type: Dockerfile
+    dockerfile: |-
+      FROM scratch
+      COPY app /app
+      ENTRYPOINT ["/app"]
+    images:
+    - from: 
+        kind: ImageStreamTag
+        name: go-hello-world-appimage:1.0
+      paths: 
+      - sourcePath: /go/src/app/app
+        destinationDir: "."
+  strategy:
+    type: Docker
+    dockerStrategy:
+      from: 
+        kind: DockerImage
+        name: scratch
+  output:
+    to:
+      kind: ImageStreamTag
+      name: go-hello-world:1.0
+  triggers:
+  - type: ConfigChange
+  - imageChange:
+      type: ImageChange
