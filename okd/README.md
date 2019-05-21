@@ -1,6 +1,6 @@
 # Creating a Source-to-Image build pipeline in OKD
 
-The Source-to-Image build described in the previous section is perfect for local development, or maintaining a builder image with a code pipeline, but if you have access to an OKD or OpenShift cluster (or Minishift), you can setup the entire workflow using OKD `buildConfigs`, not only to build and maintain the builder image, but to use the builder image to create the application image and subsequent runtime image, automatically.  The images can be rebuilt automatically when downstream images change, and can trigger OKD deploymentConfigs to redeploy applications running from these image.
+The Source-to-Image build described in the previous section is perfect for local development, or maintaining a builder image with a code pipeline, but if you have access to an [OKD](https://www.okd.io/) or OpenShift cluster (or [Minishift](https://github.com/minishift/minishift)), you can setup the entire workflow using OKD `buildConfigs`, not only to build and maintain the builder image, but to use the builder image to create the application image and subsequent runtime image, automatically.  The images can be rebuilt automatically when downstream images change, and can trigger OKD deploymentConfigs to redeploy applications running from these image.
 
 
 ## Part 1: Build the Builder Image in OKD
