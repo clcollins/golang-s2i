@@ -1,5 +1,7 @@
 # Writing your own Golang Builder with Source-to-Image
 
+[![Docker Repository on Quay](https://quay.io/repository/clcollins/golang-builder/status "Docker Repository on Quay")](https://quay.io/repository/clcollins/golang-builder)
+
 [Source To Image](https://github.com/openshift/source-to-image) is an excellent tool for building container images for applications in a fast, flexible and _reproducible_ way.  Source to Image (s2i or sti) takes a base, "builder" image with all the libraries and build tools needed to compile an application (as with a Golang app) or install dependencies (like Python's Pip, or Ruby's Bundler) and a set of scripts in a well-known location that are used to build, test and run the application.  Once the builder image is created, Source to Image can take code from a repository, inject it into the build image, compile or install dependencies, and generate an application image with the final application ready to go.
 
 Source to Image makes it easy to reproduce consistent images and allows developers to focus on their applications rather than Docker images and containers, and since the build environment is created ahead of time, builds only take as long as the application takes to compile or configure.
